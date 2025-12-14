@@ -51,7 +51,6 @@ def build_dynamic_agent(context: str, tools):
         model=llm,
         tools=tool_list,
         checkpointer=GLOBAL_MEMORY,  # Use shared memory store
-        state_schema=None,
     )
 
     # Return agent + context

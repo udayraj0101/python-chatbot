@@ -21,8 +21,11 @@ app.add_middleware(
 
 @app.post("/agent/process")
 async def process_agent(request: AgentRequest):
-    # Log input
+    # Log complete payload
+    logger.info(f"📋 PAYLOAD: {request.model_dump()}")
     logger.info(f"📥 INPUT [Thread: {request.thread_id}] User: {request.user_message}")
+    logger.info(f"🎭 CONTEXT: {request.context}")
+    logger.info(f"🛠️ TOOLS: {len(request.tools)} tools provided")
 
     # Build agent dynamically based on business config
     agent = build_dynamic_agent(
@@ -33,9 +36,13 @@ async def process_agent(request: AgentRequest):
     # Thread ID becomes memory key
     config = {"configurable": {"thread_id": request.thread_id}}
 
-    # Run the LangGraph agent
+    # Run the LangGraph agent with system context
+    messages = [
+        ("system", request.context),
+        ("user", request.user_message)
+    ]
     result = agent.invoke(
-        {"messages": [("user", request.user_message)]},
+        {"messages": messages},
         config=config
     )
 
