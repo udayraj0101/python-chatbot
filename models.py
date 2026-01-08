@@ -1,14 +1,14 @@
 from pydantic import BaseModel
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 
 
 class ToolSchema(BaseModel):
     name: str
     description: str
-    endpoint: str
-    method: str = "POST"
+    endpoint: Optional[str] = None
+    method: Optional[str] = "POST"
     headers: Optional[Dict[str, str]] = None
-    params: Optional[Dict[str, Any]] = None
+    parameters: Optional[Dict[str, Any]] = None  # For function tools
 
 
 class AgentRequest(BaseModel):
@@ -16,5 +16,5 @@ class AgentRequest(BaseModel):
     agent_id: int
     thread_id: str
     user_message: str
-    context: str               # system prompt / agent instructions
-    tools: List[ToolSchema]    # dynamic tools from Node.js CRM
+    context: str
+    tools: List[ToolSchema]  # Unified tool schema

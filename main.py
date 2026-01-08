@@ -162,13 +162,33 @@ async def process_agent(request: AgentRequest):
     if model_name:
         logger.info(f"🧠 MODEL [Thread: {request.thread_id}]: {model_name}")
 
-    # Return full response with added fields for model and token usage
+    # Return response with tool_calls extracted from LangGraph result
+    tool_calls = []
+    
+    # Extract tool calls from LangGraph agent steps
+    if "steps" in result:
+        for step in result["steps"]:
+            if hasattr(step, 'action') and hasattr(step.action, 'tool'):
+                tool_calls.append({
+                    "name": step.action.tool,
+                    "parameters": step.action.tool_input
+                })
+    
+    # Alternative: check messages for tool calls
+    for msg in result.get("messages", []):
+        if hasattr(msg, 'tool_calls') and msg.tool_calls:
+            for tc in msg.tool_calls:
+                tool_calls.append({
+                    "name": tc.get("name") or tc.get("function", {}).get("name"),
+                    "parameters": tc.get("args") or tc.get("function", {}).get("arguments", {})
+                })
+    
     return {
         "business_id": request.business_id,
         "agent_id": request.agent_id,
         "thread_id": request.thread_id,
         "ai_response": ai_response,
-        "tool_calls": result.get("steps", []),
+        "tool_calls": tool_calls,
         "conversation_length": conversation_length,
         "model_name": model_name,
         "token_usage": token_usage,
