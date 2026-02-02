@@ -126,6 +126,7 @@ async def process_agent(request: AgentRequest):
         f"📥 INPUT [Thread: {request.thread_id}] User: {request.user_message}")
     logger.info(f"🎭 CONTEXT: {request.context}")
     logger.info(f"🛠️ TOOLS: {len(request.tools)} tools provided")
+    logger.info(f"📚 HISTORY: {len(request.conversation_history)} previous messages")
 
     # Build agent dynamically based on business config
     agent = build_dynamic_agent(
@@ -133,25 +134,30 @@ async def process_agent(request: AgentRequest):
         tools=request.tools
     )
 
-    # Thread ID becomes memory key
-    config = {"configurable": {"thread_id": request.thread_id}}
+    # Build messages array with conversation history
+    messages = [("system", request.context)]
+    
+    # Add conversation history
+    for msg in request.conversation_history:
+        if msg.role == "user":
+            messages.append(("human", msg.content))
+        elif msg.role == "assistant":
+            messages.append(("ai", msg.content))
+    
+    # Add current user message
+    messages.append(("human", request.user_message))
+    
+    logger.info(f"💬 TOTAL MESSAGES: {len(messages)} (including system + history + current)")
 
-    # Run the LangGraph agent with system context
-    messages = [
-        ("system", request.context),
-        ("user", request.user_message)
-    ]
-    result = agent.invoke(
-        {"messages": messages},
-        config=config
-    )
+    # Run the LangGraph agent WITHOUT config (no memory needed)
+    result = agent.invoke({"messages": messages})
 
     # Log output
     ai_response = result["messages"][-1].content
     conversation_length = len(result["messages"])
     logger.info(f"📤 OUTPUT [Thread: {request.thread_id}] AI: {ai_response}")
     logger.info(
-        f"📊 MEMORY [Thread: {request.thread_id}] Total messages: {conversation_length}")
+        f"📊 PROCESSING [Thread: {request.thread_id}] Total messages processed: {conversation_length}")
 
     # Extract token usage and model name (we return minimal payload for Node.js processing)
     token_usage = extract_token_usage_from_result(result)

@@ -11,6 +11,11 @@ class ToolSchema(BaseModel):
     parameters: Optional[Dict[str, Any]] = None  # For function tools
 
 
+class ConversationMessage(BaseModel):
+    role: str  # 'user' or 'assistant'
+    content: str
+
+
 class AgentRequest(BaseModel):
     business_id: int
     agent_id: int
@@ -18,3 +23,4 @@ class AgentRequest(BaseModel):
     user_message: str
     context: str
     tools: List[ToolSchema]  # Unified tool schema
+    conversation_history: Optional[List[ConversationMessage]] = []  # Add conversation history

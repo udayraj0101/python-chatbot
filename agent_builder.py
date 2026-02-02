@@ -4,13 +4,9 @@ import requests
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
-from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.tools import tool
 
 load_dotenv()
-
-# Global memory store - shared across all agent instances
-GLOBAL_MEMORY = InMemorySaver()
 
 # Node.js API base URL for function tools
 NODE_API_BASE = os.getenv("NODE_API_BASE", "http://localhost:3001")
@@ -97,11 +93,12 @@ def build_dynamic_agent(context: str, tools):
     # Create tool wrappers
     tool_list = build_tools(tools)
 
-    # Create dynamic agent using LangGraph ReAct template with GLOBAL memory
+    # Create dynamic agent using LangGraph ReAct template WITHOUT memory
+    # Memory is now managed by Node.js via conversation_history
     agent = create_react_agent(
         model=llm,
-        tools=tool_list,
-        checkpointer=GLOBAL_MEMORY,
+        tools=tool_list
+        # Removed: checkpointer=GLOBAL_MEMORY
     )
 
     return agent
