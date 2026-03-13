@@ -4,10 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from models import AgentRequest
 from agent_builder import build_dynamic_agent
+from sla_integration import SLAIntegration
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Initialize SLA integration
+sla_integration = SLAIntegration()
 
 # --- Token usage helpers ----------------------------------------------
 
@@ -128,14 +132,21 @@ async def process_agent(request: AgentRequest):
     logger.info(f"🛠️ TOOLS: {len(request.tools)} tools provided")
     logger.info(f"📚 HISTORY: {len(request.conversation_history)} previous messages")
 
+    # Check SLA status and modify context if needed
+    sla_context = sla_integration.get_escalation_context(request.thread_id)
+    enhanced_context = request.context
+    if sla_context:
+        enhanced_context = f"{request.context}\n\n{sla_context}"
+        logger.info(f"⚠️ SLA [Thread: {request.thread_id}]: {sla_context}")
+
     # Build agent dynamically based on business config
     agent = build_dynamic_agent(
-        context=request.context,
+        context=enhanced_context,
         tools=request.tools
     )
 
     # Build messages array with conversation history
-    messages = [("system", request.context)]
+    messages = [("system", enhanced_context)]
     
     # Add conversation history
     for msg in request.conversation_history:
@@ -177,16 +188,19 @@ async def process_agent(request: AgentRequest):
             if hasattr(step, 'action') and hasattr(step.action, 'tool'):
                 tool_calls.append({
                     "name": step.action.tool,
-                    "parameters": step.action.tool_input
+                    "parameters": {**step.action.tool_input, "thread_id": request.thread_id}
                 })
     
     # Alternative: check messages for tool calls
     for msg in result.get("messages", []):
         if hasattr(msg, 'tool_calls') and msg.tool_calls:
             for tc in msg.tool_calls:
+                params = tc.get("args") or tc.get("function", {}).get("arguments", {})
+                if isinstance(params, dict):
+                    params["thread_id"] = request.thread_id
                 tool_calls.append({
                     "name": tc.get("name") or tc.get("function", {}).get("name"),
-                    "parameters": tc.get("args") or tc.get("function", {}).get("arguments", {})
+                    "parameters": params
                 })
     
     return {

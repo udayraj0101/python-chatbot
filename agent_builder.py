@@ -5,11 +5,17 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
 from langchain_core.tools import tool
+from sla_integration import SLAIntegration
+from feedback_integration import FeedbackIntegration
 
 load_dotenv()
 
 # Node.js API base URL for function tools
 NODE_API_BASE = os.getenv("NODE_API_BASE", "http://localhost:3001")
+
+# Initialize integrations
+sla_integration = SLAIntegration()
+feedback_integration = FeedbackIntegration()
 
 
 def build_tools(tools):
@@ -47,22 +53,29 @@ def build_tools(tools):
             def make_function_tool(tc):
                 if tc.name == "submit_feedback":
                     @tool
-                    def submit_feedback(rating: int, feedback_text: str) -> str:
+                    def submit_feedback(rating: int, feedback_text: str, thread_id: str = "") -> str:
                         """Submit user feedback rating when user provides rating or feedback"""
                         try:
-                            # This will be handled by Node.js tool call processing
-                            return f"Feedback submitted: {rating} stars - {feedback_text}"
+                            result = feedback_integration.submit_feedback(thread_id, rating, feedback_text)
+                            if "error" in result:
+                                return f"Error submitting feedback: {result['error']}"
+                            return f"Feedback submitted successfully: {rating} stars - {feedback_text}"
                         except Exception as e:
                             return f"Error: {str(e)}"
                     return submit_feedback
                     
                 elif tc.name == "request_feedback":
                     @tool
-                    def request_feedback(message: str) -> str:
+                    def request_feedback(message: str, thread_id: str = "") -> str:
                         """Send feedback request to user when query is resolved"""
                         try:
-                            # This will be handled by Node.js tool call processing
-                            return f"Feedback requested: {message}"
+                            if not feedback_integration.can_request_feedback(thread_id):
+                                return "Feedback already requested for this conversation"
+                            
+                            result = feedback_integration.request_feedback(thread_id, message)
+                            if "error" in result:
+                                return f"Error requesting feedback: {result['error']}"
+                            return f"Feedback request sent: {message}"
                         except Exception as e:
                             return f"Error: {str(e)}"
                     return request_feedback
